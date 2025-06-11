@@ -1,57 +1,77 @@
+/* Tab Styles */
 .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #ddd; }
-        .tab-button { padding: 10px 20px; cursor: pointer; background: none; border: none; outline: none; }
-        .tab-button.active { border-bottom: 2px solid #1976d2; }
-        .tab-content { display: none; padding: 20px; }
-        .tab-content.active { display: block; }
-        .message-error { color: #e53935; font-weight: bold; margin-bottom: 10px; }
-        .message-success { color: #43a047; font-weight: bold; margin-bottom: 10px; }
+.tab-button { padding: 10px 20px; cursor: pointer; background: none; border: none; outline: none; }
+.tab-button.active { border-bottom: 2px solid #1976d2; }
+.tab-content { display: none; padding: 20px; }
+.tab-content.active { display: block; }
 
-<div class="tabs" style="display: flex; margin-bottom: 20px; border-bottom: 1px solid #ddd;">
-        <button class="tab-button active" data-tab="create">Create New Dataset</button>
-        <button class="tab-button" data-tab="modify">Modify Existing Dataset</button>
-    </div>
+/* Team Select Styles */
+.team-select-container { flex: 1; position: relative; }
+.selected-teams-display { cursor: pointer; min-height: 38px; display: flex; flex-wrap: wrap; align-items: center; padding: 0 8px; gap: 4px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+.selected-teams-display span.placeholder { color: #888; }
+.team-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 10; background: #fff; border: 1px solid #ccc; border-radius: 4px; max-height: 180px; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: none; }
+.team-options-list { list-style: none; padding: 0 8px; margin: 0; }
+.team-options-list li { padding: 8px; cursor: pointer; border-bottom: 1px solid #eee; display: flex; align-items: center; }
 
-!-- Modify Existing Tab Content -->
-    <div id="modifyTabContent" class="tab-content hidden">
-        <div class="row" style="font-size: 1.5em; font-weight: bold; margin-bottom: 20px;">Modify Existing Dataset</div>
-        <form id="modifyDatasetForm" method="post">
-            {% csrf_token %}
-            <div class="row">
-                <div class="label">Dataset Name:</div>
-                <input class="input" type="text" id="modifyDatasetName" name="datasetName" required>
-            </div>
+/* Message Styles */
+.message-error { color: #e53935; font-weight: bold; margin-bottom: 10px; }
+.message-success { color: #43a047; font-weight: bold; margin-bottom: 10px; }
 
-            <!-- Team Names for Modify Tab (reusing custom select logic) -->
-            <div class="row" style="align-items: flex-start;">
-                <div class="label" style="padding-top: 8px;">Team Names:</div>
-                <div id="modifyTeamSelectContainer" class="team-select-container">
-                    <div id="modifySelectedTeamsDisplay" class="selected-teams-display">
-                        <span class="placeholder" id="modifyTeamPlaceholder">Select teams...</span>
-                    </div>
-                    <div id="modifyTeamDropdown" class="team-dropdown">
-                        <input type="text" id="modifyTeamSearchInput" class="input" placeholder="Search teams...">
-                        <ul id="modifyTeamOptionsList" class="team-options-list"></ul>
-                    </div>
+
+<!-- Tab Buttons -->
+<div class="tabs">
+    <button class="tab-button active" data-tab="create">Create New Dataset</button>
+    <button class="tab-button" data-tab="modify">Modify Existing Dataset</button>
+</div>
+
+<!-- Modify Tab Content -->
+<div id="modifyTabContent" class="tab-content hidden">
+    <div class="row" style="font-size: 1.5em; font-weight: bold; margin-bottom: 20px;">Modify Existing Dataset</div>
+    <form id="modifyDatasetForm" method="post">
+        {% csrf_token %}
+        <!-- Dataset Name Input -->
+        <div class="row">
+            <div class="label">Dataset Name:</div>
+            <input class="input" type="text" id="modifyDatasetName" name="datasetName" required>
+        </div>
+
+        <!-- Team Selection -->
+        <div class="row" style="align-items: flex-start;">
+            <div class="label" style="padding-top: 8px;">Team Names:</div>
+            <div id="modifyTeamSelectContainer" class="team-select-container">
+                <div id="modifySelectedTeamsDisplay" class="selected-teams-display">
+                    <span class="placeholder" id="modifyTeamPlaceholder">Select teams...</span>
+                </div>
+                <div id="modifyTeamDropdown" class="team-dropdown">
+                    <input type="text" id="modifyTeamSearchInput" class="input" placeholder="Search teams...">
+                    <ul id="modifyTeamOptionsList" class="team-options-list"></ul>
                 </div>
             </div>
+        </div>
 
-            <div class="row" id="modifyJsonInputRow" style="align-items: flex-start;">
-                <div class="label" style="padding-top: 8px;">Existing Fields JSON:
-                    <span id="modifyJsonInfoIcon" style="cursor:pointer; margin-left:6px; color:#1976d2; font-size:1.1em;" title='Format: {"column_name": "string|float"}'>ℹ️</span>
-                </div>
-                <textarea id="modifyJsonFieldsInput" class="input" rows="15" placeholder='Fetched JSON will appear here' style="flex:2; resize: vertical;"></textarea>
+        <!-- JSON Input -->
+        <div class="row" id="modifyJsonInputRow" style="align-items: flex-start;">
+            <div class="label" style="padding-top: 8px;">Existing Fields JSON:
+                <span id="modifyJsonInfoIcon" style="cursor:pointer; margin-left:6px; color:#1976d2; font-size:1.1em;" title='Format: {"column_name": "string|float"}'>ℹ️</span>
             </div>
-            <div class="row message-error hidden" id="modifyJsonErrorRow"></div>
+            <textarea id="modifyJsonFieldsInput" class="input" rows="15" placeholder='Fetched JSON will appear here' style="flex:2; resize: vertical;"></textarea>
+        </div>
+        <div class="row message-error hidden" id="modifyJsonErrorRow"></div>
 
-            <div class="row" style="justify-content: flex-end; margin-top: 24px;">
-                <button type="button" class="btn btn-info" id="loadExistingBtn">Load Existing Dataset</button>
-                <button type="submit" class="btn btn-primary" id="updateExistingBtn">Update Existing Dataset</button>
-            </div>
-            <div class="row message-success hidden" id="modifySuccessMessage"></div>
-            <div class="row message-error hidden" id="modifyErrorMessage"></div>
-        </form>
-    </div>
+        <!-- Action Buttons -->
+        <div class="row" style="justify-content: flex-end; margin-top: 24px;">
+            <button type="button" class="btn btn-info" id="loadExistingBtn">Load Existing Dataset</button>
+            <button type="submit" class="btn btn-primary" id="updateExistingBtn">Update Existing Dataset</button>
+        </div>
+        <div class="row message-success hidden" id="modifySuccessMessage"></div>
+        <div class="row message-error hidden" id="modifyErrorMessage"></div>
+    </form>
+</div>
 
+
+// State variables
+let modifyTeamNames = [];
+let modifyJsonFieldsValid = true;
 
 // Tab Elements
 const createTabButton = document.querySelector('[data-tab="create"]');
@@ -75,12 +95,10 @@ const modifySuccessMessage = document.getElementById('modifySuccessMessage');
 const modifyErrorMessage = document.getElementById('modifyErrorMessage');
 const modifyDatasetForm = document.getElementById('modifyDatasetForm');
 
-// State for modify tab's team selection (separate from create tab's teamNames)
-let modifyTeamNames = [];
-let modifyJsonFieldsValid = true;
+// List of available teams
+const ALL_TEAMS = ['team1', 'team2', 'team3', 'team4', 'team5', 'team6']; // Update with your teams
 
-
-// --- Tab Switching Logic ---
+// Tab Switching Logic
 function switchTab(tabName) {
     if (tabName === 'create') {
         createTabButton.classList.add('active');
@@ -92,7 +110,6 @@ function switchTab(tabName) {
         createTabButton.classList.remove('active');
         modifyTabContent.classList.remove('hidden');
         createTabContent.classList.add('hidden');
-        // Re-render modify tab's team options when switching to it
         renderModifyTeamOptions('');
         updateModifySelectedTeamsDisplay();
     }
@@ -101,14 +118,9 @@ function switchTab(tabName) {
 createTabButton.onclick = () => switchTab('create');
 modifyTabButton.onclick = () => switchTab('modify');
 
-
-// --- Custom Team Select Logic (for Create Tab) ---
-// ... (Existing functions: renderTeamOptions, handleTeamSelection, updateSelectedTeamsDisplay, etc. remains same)
-// Ensure these functions operate on 'teamNames' and original HTML elements
-
-// --- Custom Team Select Logic (for Modify Tab - duplicated and adapted) ---
+// Team Selection Functions
 function renderModifyTeamOptions(filter = '') {
-    modifyTeamOptionsList.innerHTML = ''; // Clear current options
+    modifyTeamOptionsList.innerHTML = '';
     const lowerFilter = filter.toLowerCase();
     ALL_TEAMS.filter(team => team.toLowerCase().includes(lowerFilter))
              .forEach(team => {
@@ -122,7 +134,7 @@ function renderModifyTeamOptions(filter = '') {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = team;
-        checkbox.checked = modifyTeamNames.includes(team); // Use modifyTeamNames
+        checkbox.checked = modifyTeamNames.includes(team);
         checkbox.style.marginRight = '8px';
 
         const label = document.createElement('label');
@@ -135,7 +147,7 @@ function renderModifyTeamOptions(filter = '') {
 
         li.onclick = (e) => {
             if (e.target !== checkbox && e.target !== label) {
-                 checkbox.checked = !checkbox.checked;
+                checkbox.checked = !checkbox.checked;
             }
             handleModifyTeamSelection(team, checkbox.checked);
         };
@@ -175,6 +187,7 @@ function updateModifySelectedTeamsDisplay() {
     }
 }
 
+// Team Dropdown Event Listeners
 modifySelectedTeamsDisplay.onclick = () => {
     const isVisible = modifyTeamDropdown.style.display === 'block';
     if (!isVisible) {
@@ -196,9 +209,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-
-
-// --- JSON Input Validation Logic (for Modify Tab - adapted) ---
+// JSON Validation
 modifyJsonFieldsInput.oninput = function() {
     let error = '';
     try {
@@ -222,8 +233,7 @@ modifyJsonFieldsInput.oninput = function() {
     }
 };
 
-
-// --- Load Existing Dataset Logic ---
+// Load Existing Dataset
 loadExistingBtn.onclick = async function() {
     modifySuccessMessage.classList.add('hidden');
     modifyErrorMessage.classList.add('hidden');
@@ -246,7 +256,7 @@ loadExistingBtn.onclick = async function() {
             },
             body: JSON.stringify({
                 dataset_name: datasetName,
-                team_names: teamNamesToLoad // Send selected teams to help fetch Athena metadata per team
+                team_names: teamNamesToLoad
             })
         });
 
@@ -255,7 +265,7 @@ loadExistingBtn.onclick = async function() {
         if (response.ok) {
             if (result.fields_json) {
                 modifyJsonFieldsInput.value = JSON.stringify(result.fields_json, null, 2);
-                modifyJsonFieldsInput.oninput(); // Trigger validation and initial check
+                modifyJsonFieldsInput.oninput();
                 modifySuccessMessage.textContent = 'Dataset loaded successfully.';
                 modifySuccessMessage.classList.remove('hidden');
             } else {
@@ -266,7 +276,6 @@ loadExistingBtn.onclick = async function() {
             modifyErrorMessage.textContent = result.error || 'An unknown error occurred while loading.';
             modifyErrorMessage.classList.remove('hidden');
         }
-
     } catch (error) {
         console.error('Error loading dataset:', error);
         modifyErrorMessage.textContent = 'Network error or server unreachable.';
@@ -274,14 +283,13 @@ loadExistingBtn.onclick = async function() {
     }
 };
 
-
-// --- Update Existing Dataset Logic (Placeholder) ---
-modifyDatasetForm.onsubmit = async function(e) { // Renamed from updateExistingBtn.onclick
-    e.preventDefault(); // Prevent default form submission
+// Update Existing Dataset
+modifyDatasetForm.onsubmit = async function(e) {
+    e.preventDefault();
     modifySuccessMessage.classList.add('hidden');
     modifyErrorMessage.classList.add('hidden');
 
-    modifyJsonFieldsInput.oninput(); // Re-validate JSON before submission
+    modifyJsonFieldsInput.oninput();
     if (!modifyJsonFieldsValid) {
         modifyErrorMessage.textContent = 'Please correct the JSON errors.';
         modifyErrorMessage.classList.remove('hidden');
@@ -292,11 +300,7 @@ modifyDatasetForm.onsubmit = async function(e) { // Renamed from updateExistingB
     const teamNamesToUpdate = modifyTeamNames.filter(t => t.trim() !== '');
     let updatedAttributes = {};
     try {
-        // Parse the JSON from the textarea for submission
-        const parsedInputJson = JSON.parse(modifyJsonFieldsInput.value);
-        // The backend expects 'attributes' in the format { 'col_name': 'type' }
-        // The parsedInputJson is already in this format, or similar. We send it as is.
-        updatedAttributes = parsedInputJson;
+        updatedAttributes = JSON.parse(modifyJsonFieldsInput.value);
     } catch (e) {
         modifyErrorMessage.textContent = 'Invalid JSON in input field. Cannot update.';
         modifyErrorMessage.classList.remove('hidden');
@@ -319,7 +323,7 @@ modifyDatasetForm.onsubmit = async function(e) { // Renamed from updateExistingB
             body: JSON.stringify({
                 dataset_name: datasetName,
                 team_names: teamNamesToUpdate,
-                updated_attributes: updatedAttributes // Send the parsed attributes
+                updated_attributes: updatedAttributes
             })
         });
 
@@ -338,4 +342,3 @@ modifyDatasetForm.onsubmit = async function(e) { // Renamed from updateExistingB
         modifyErrorMessage.classList.remove('hidden');
     }
 };
-
