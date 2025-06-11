@@ -1,3 +1,4 @@
+
 @csrf_exempt
 @require_POST
 def update_existing_dataset(request):
@@ -76,3 +77,58 @@ def update_existing_dataset(request):
     except Exception as e:
         return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
 
+@csrf_exempt
+@require_POST
+def load_existing_dataset(request):
+    """API endpoint to load an existing dataset from DynamoDB."""
+    try:
+        data = json.loads(request.body)
+        dataset_name = data.get('dataset_name')
+        team_names = data.get('team_names', [])
+
+        if not dataset_name or not team_names:
+            return JsonResponse({'error': 'Missing required fields: dataset_name or team_names'}, status=400)
+
+        # Initialize DynamoDB client
+        dynamodb = boto3.resource('dynamodb',
+            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+            region_name=os.getenv('AWS_REGION')
+        )
+        table = dynamodb.Table('ExtractorDataset')
+
+        try:
+            # Get existing dataset
+            response = table.get_item(
+                Key={'DatasetName': dataset_name}
+            )
+            
+            if 'Item' not in response:
+                return JsonResponse({'error': f'Dataset "{dataset_name}" not found'}, status=404)
+
+            item = response['Item']
+            fields = item.get('Fields', {})
+            additional_metadata = item.get('AdditionalMetadata', {})
+            stored_teams = additional_metadata.get('TeamNames', [])
+
+            # Verify teams
+            if not all(team in stored_teams for team in team_names):
+                return JsonResponse({
+                    'error': f'Some specified teams are not associated with this dataset. Available teams: {", ".join(stored_teams)}'
+                }, status=400)
+
+            # Return the fields in a format suitable for the frontend
+            return JsonResponse({
+                'fields_json': fields,
+                'additional_metadata': additional_metadata
+            })
+
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                return JsonResponse({'error': f'Dataset "{dataset_name}" not found'}, status=404)
+            return JsonResponse({'error': f'DynamoDB error: {str(e)}'}, status=500)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
