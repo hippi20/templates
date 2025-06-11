@@ -1,16 +1,104 @@
+def _generate_athena_alter_commands(dataset_name, team_names, old_fields, new_fields, partition_keys):
+    """Generate ALTER TABLE commands for Athena based on field changes."""
+    alter_commands = []
+    
+    # Helper function to get table name for a team
+    def get_table_name(team):
+        if team == 'team xyz':
+            # For team xyz, include partition key in table name
+            return f'{dataset_name}_{team}_dt_{int(time.time())}'
+        else:
+            # For other teams, use standard naming
+            return f'{dataset_name}_{team}'
+
+    for team in team_names:
+        db = team
+        table = get_table_name(team)
+        
+        # Find added and modified columns
+        added_columns = set(new_fields.keys()) - set(old_fields.keys())
+        modified_columns = set(k for k in new_fields.keys() & old_fields.keys() 
+                             if new_fields[k] != old_fields[k])
+        removed_columns = set(old_fields.keys()) - set(new_fields.keys())
+
+        # Skip partition keys as they can't be altered
+        effective_partition_keys = ['kpigroup'] if team != 'team xyz' else partition_keys
+        added_columns = added_columns - set(effective_partition_keys)
+        modified_columns = modified_columns - set(effective_partition_keys)
+        removed_columns = removed_columns - set(effective_partition_keys)
+
+        # Generate ALTER commands for this team's table
+        if added_columns or modified_columns or removed_columns:
+            alter_sql = f'-- ALTER TABLE commands for team: {team}\n'
+            alter_sql += f'USE {db};\n\n'
+
+            # Add new columns
+            for col in added_columns:
+                athena_type = 'string' if new_fields[col] == 'string' else 'double'
+                alter_sql += f'ALTER TABLE {table} ADD COLUMNS (`{col}` {athena_type});\n'
+
+            # Modify existing columns (requires dropping and re-adding)
+            for col in modified_columns:
+                athena_type = 'string' if new_fields[col] == 'string' else 'double'
+                alter_sql += f'ALTER TABLE {table} DROP COLUMN `{col}`;\n'
+                alter_sql += f'ALTER TABLE {table} ADD COLUMNS (`{col}` {athena_type});\n'
+
+            # Remove columns
+            for col in removed_columns:
+                alter_sql += f'ALTER TABLE {table} DROP COLUMN `{col}`;\n'
+
+            alter_commands.append(alter_sql)
+
+    return alter_commands
+
+def _execute_athena_query(query_string, database, output_location):
+    """Execute an Athena query and wait for completion."""
+    athena = boto3.client('athena',
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+        region_name=os.getenv('AWS_REGION')
+    )
+
+    try:
+        # Start query execution
+        response = athena.start_query_execution(
+            QueryString=query_string,
+            QueryExecutionContext={'Database': database},
+            ResultConfiguration={'OutputLocation': output_location}
+        )
+        query_execution_id = response['QueryExecutionId']
+
+        # Wait for query to complete
+        while True:
+            query_status = athena.get_query_execution(QueryExecutionId=query_execution_id)
+            state = query_status['QueryExecution']['Status']['State']
+            
+            if state in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
+                break
+                
+            time.sleep(1)  # Wait 1 second before checking again
+
+        if state == 'FAILED':
+            error_message = query_status['QueryExecution']['Status'].get('StateChangeReason', 'Unknown error')
+            raise Exception(f'Athena query failed: {error_message}')
+        
+        return True, None
+
+    except Exception as e:
+        return False, str(e)
 
 @csrf_exempt
 @require_POST
 def update_existing_dataset(request):
-    """API endpoint to update an existing dataset in DynamoDB and generate new Athena SQL."""
+    """API endpoint to update an existing dataset in DynamoDB and Athena."""
     try:
         data = json.loads(request.body)
         dataset_name = data.get('dataset_name')
         team_names = data.get('team_names', [])
-        new_fields = data.get('new_fields', {})  # Fields to add/update
+        new_fields = data.get('updated_attributes', {})
 
         if not dataset_name or not team_names or not new_fields:
-            return JsonResponse({'error': 'Missing required fields: dataset_name, team_names, or new_fields'}, status=400)
+            return JsonResponse({'error': 'Missing required fields: dataset_name, team_names, or updated_attributes'}, status=400)
 
         # Initialize DynamoDB client
         dynamodb = boto3.resource('dynamodb',
@@ -33,6 +121,7 @@ def update_existing_dataset(request):
             existing_fields = item.get('Fields', {})
             additional_metadata = item.get('AdditionalMetadata', {})
             stored_teams = additional_metadata.get('TeamNames', [])
+            partition_keys = additional_metadata.get('PartitionKeys', [])
 
             # Verify teams
             if not all(team in stored_teams for team in team_names):
@@ -52,10 +141,35 @@ def update_existing_dataset(request):
                 }
             )
 
-            # Generate new Athena SQL for the updated dataset
-            # Use existing partition keys from additional_metadata
-            partition_keys = additional_metadata.get('PartitionKeys', [])
-            athena_result = _generate_athena_sql_resource(
+            # Generate ALTER TABLE commands for Athena
+            alter_commands = _generate_athena_alter_commands(
+                dataset_name, 
+                team_names, 
+                existing_fields, 
+                updated_fields,
+                partition_keys
+            )
+
+            # Execute ALTER commands for each team
+            athena_results = []
+            s3_output_location = f's3://{os.getenv("ATHENA_OUTPUT_BUCKET")}/athena-results/'
+            
+            for team, alter_sql in zip(team_names, alter_commands):
+                success, error = _execute_athena_query(
+                    alter_sql,
+                    team,  # database name is same as team name
+                    s3_output_location
+                )
+                
+                athena_results.append({
+                    'team': team,
+                    'success': success,
+                    'error': error,
+                    'sql': alter_sql
+                })
+
+            # Generate new CREATE TABLE SQL (for reference)
+            create_sql_result = _generate_athena_sql_resource(
                 dataset_name,
                 team_names,
                 updated_fields,
@@ -64,63 +178,9 @@ def update_existing_dataset(request):
 
             return JsonResponse({
                 'message': 'Dataset updated successfully',
-                'athena_sql': athena_result.get('sql', '')
-            })
-
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                return JsonResponse({'error': f'Dataset "{dataset_name}" not found'}, status=404)
-            return JsonResponse({'error': f'DynamoDB error: {str(e)}'}, status=500)
-
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
-
-@csrf_exempt
-@require_POST
-def load_existing_dataset(request):
-    """API endpoint to load an existing dataset from DynamoDB."""
-    try:
-        data = json.loads(request.body)
-        dataset_name = data.get('dataset_name')
-        team_names = data.get('team_names', [])
-
-        if not dataset_name or not team_names:
-            return JsonResponse({'error': 'Missing required fields: dataset_name or team_names'}, status=400)
-
-        # Initialize DynamoDB client
-        dynamodb = boto3.resource('dynamodb',
-            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-            region_name=os.getenv('AWS_REGION')
-        )
-        table = dynamodb.Table('ExtractorDataset')
-
-        try:
-            # Get existing dataset
-            response = table.get_item(
-                Key={'DatasetName': dataset_name}
-            )
-            
-            if 'Item' not in response:
-                return JsonResponse({'error': f'Dataset "{dataset_name}" not found'}, status=404)
-
-            item = response['Item']
-            fields = item.get('Fields', {})
-            additional_metadata = item.get('AdditionalMetadata', {})
-            stored_teams = additional_metadata.get('TeamNames', [])
-
-            # Verify teams
-            if not all(team in stored_teams for team in team_names):
-                return JsonResponse({
-                    'error': f'Some specified teams are not associated with this dataset. Available teams: {", ".join(stored_teams)}'
-                }, status=400)
-
-            # Return the fields in a format suitable for the frontend
-            return JsonResponse({
-                'fields_json': fields,
-                'additional_metadata': additional_metadata
+                'dynamodb_update': 'success',
+                'athena_updates': athena_results,
+                'create_table_sql': create_sql_result.get('sql', '')  # For reference
             })
 
         except ClientError as e:
