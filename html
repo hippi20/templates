@@ -65,3 +65,290 @@
             <div class="row message-error hidden" id="modifyErrorMessage"></div>
         </form>
     </div>
+
+// Tab Elements
+const createTabButton = document.querySelector('[data-tab="create"]');
+const modifyTabButton = document.querySelector('[data-tab="modify"]');
+const createTabContent = document.getElementById('createTabContent');
+const modifyTabContent = document.getElementById('modifyTabContent');
+
+// Modify Tab Elements
+const modifyDatasetNameInput = document.getElementById('modifyDatasetName');
+const modifyTeamSelectContainer = document.getElementById('modifyTeamSelectContainer');
+const modifySelectedTeamsDisplay = document.getElementById('modifySelectedTeamsDisplay');
+const modifyTeamDropdown = document.getElementById('modifyTeamDropdown');
+const modifyTeamSearchInput = document.getElementById('modifyTeamSearchInput');
+const modifyTeamOptionsList = document.getElementById('modifyTeamOptionsList');
+const modifyTeamPlaceholder = document.getElementById('modifyTeamPlaceholder');
+const modifyJsonFieldsInput = document.getElementById('modifyJsonFieldsInput');
+const modifyJsonErrorRow = document.getElementById('modifyJsonErrorRow');
+const loadExistingBtn = document.getElementById('loadExistingBtn');
+const updateExistingBtn = document.getElementById('updateExistingBtn');
+const modifySuccessMessage = document.getElementById('modifySuccessMessage');
+const modifyErrorMessage = document.getElementById('modifyErrorMessage');
+const modifyDatasetForm = document.getElementById('modifyDatasetForm');
+
+// State for modify tab's team selection (separate from create tab's teamNames)
+let modifyTeamNames = [];
+let modifyJsonFieldsValid = true;
+
+
+// --- Tab Switching Logic ---
+function switchTab(tabName) {
+    if (tabName === 'create') {
+        createTabButton.classList.add('active');
+        modifyTabButton.classList.remove('active');
+        createTabContent.classList.remove('hidden');
+        modifyTabContent.classList.add('hidden');
+    } else if (tabName === 'modify') {
+        modifyTabButton.classList.add('active');
+        createTabButton.classList.remove('active');
+        modifyTabContent.classList.remove('hidden');
+        createTabContent.classList.add('hidden');
+        // Re-render modify tab's team options when switching to it
+        renderModifyTeamOptions('');
+        updateModifySelectedTeamsDisplay();
+    }
+}
+
+createTabButton.onclick = () => switchTab('create');
+modifyTabButton.onclick = () => switchTab('modify');
+
+
+// --- Custom Team Select Logic (for Create Tab) ---
+// ... (Existing functions: renderTeamOptions, handleTeamSelection, updateSelectedTeamsDisplay, etc. remains same)
+// Ensure these functions operate on 'teamNames' and original HTML elements
+
+// --- Custom Team Select Logic (for Modify Tab - duplicated and adapted) ---
+function renderModifyTeamOptions(filter = '') {
+    modifyTeamOptionsList.innerHTML = ''; // Clear current options
+    const lowerFilter = filter.toLowerCase();
+    ALL_TEAMS.filter(team => team.toLowerCase().includes(lowerFilter))
+             .forEach(team => {
+        const li = document.createElement('li');
+        li.style.padding = '8px';
+        li.style.cursor = 'pointer';
+        li.style.borderBottom = '1px solid #eee';
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = team;
+        checkbox.checked = modifyTeamNames.includes(team); // Use modifyTeamNames
+        checkbox.style.marginRight = '8px';
+
+        const label = document.createElement('label');
+        label.textContent = team;
+        label.style.flexGrow = 1;
+        label.style.cursor = 'pointer';
+
+        li.appendChild(checkbox);
+        li.appendChild(label);
+
+        li.onclick = (e) => {
+            if (e.target !== checkbox && e.target !== label) {
+                 checkbox.checked = !checkbox.checked;
+            }
+            handleModifyTeamSelection(team, checkbox.checked);
+        };
+        checkbox.onclick = (e) => {
+            e.stopPropagation();
+            handleModifyTeamSelection(team, checkbox.checked);
+        };
+
+        modifyTeamOptionsList.appendChild(li);
+    });
+}
+
+function handleModifyTeamSelection(team, isChecked) {
+    if (isChecked) {
+        if (!modifyTeamNames.includes(team)) {
+            modifyTeamNames.push(team);
+        }
+    } else {
+        modifyTeamNames = modifyTeamNames.filter(t => t !== team);
+    }
+    updateModifySelectedTeamsDisplay();
+}
+
+function updateModifySelectedTeamsDisplay() {
+    modifySelectedTeamsDisplay.innerHTML = '';
+    if (modifyTeamNames.length === 0) {
+        modifyTeamPlaceholder.style.display = '';
+        modifySelectedTeamsDisplay.appendChild(modifyTeamPlaceholder);
+    } else {
+        modifyTeamPlaceholder.style.display = 'none';
+        modifyTeamNames.forEach(team => {
+            const span = document.createElement('span');
+            span.textContent = team;
+            span.className = 'selected-team-tag';
+            modifySelectedTeamsDisplay.appendChild(span);
+        });
+    }
+}
+
+modifySelectedTeamsDisplay.onclick = () => {
+    const isVisible = modifyTeamDropdown.style.display === 'block';
+    if (!isVisible) {
+        renderModifyTeamOptions(modifyTeamSearchInput.value);
+        modifyTeamDropdown.style.display = 'block';
+        modifyTeamSearchInput.focus();
+    } else {
+        modifyTeamDropdown.style.display = 'none';
+    }
+};
+
+modifyTeamSearchInput.oninput = () => {
+    renderModifyTeamOptions(modifyTeamSearchInput.value);
+};
+
+document.addEventListener('click', (e) => {
+    if (!modifyTeamSelectContainer.contains(e.target)) {
+        modifyTeamDropdown.style.display = 'none';
+    }
+});
+
+
+
+// --- JSON Input Validation Logic (for Modify Tab - adapted) ---
+modifyJsonFieldsInput.oninput = function() {
+    let error = '';
+    try {
+        const parsed = JSON.parse(modifyJsonFieldsInput.value || '{}');
+        Object.entries(parsed).forEach(([k, v]) => {
+            if (typeof v !== 'string' || (v !== 'string' && v !== 'float')) {
+                error = `Invalid datatype for '${k}': '${v}'. Only 'string' and 'float' allowed.`;
+            }
+        });
+    } catch (e) {
+        error = 'Invalid JSON syntax.';
+    }
+    if (error) {
+        modifyJsonFieldsValid = false;
+        modifyJsonErrorRow.textContent = error;
+        modifyJsonErrorRow.style.display = '';
+    } else {
+        modifyJsonFieldsValid = true;
+        modifyJsonErrorRow.textContent = '';
+        modifyJsonErrorRow.style.display = 'none';
+    }
+};
+
+
+// --- Load Existing Dataset Logic ---
+loadExistingBtn.onclick = async function() {
+    modifySuccessMessage.classList.add('hidden');
+    modifyErrorMessage.classList.add('hidden');
+
+    const datasetName = modifyDatasetNameInput.value.trim();
+    const teamNamesToLoad = modifyTeamNames.filter(t => t.trim() !== '');
+
+    if (!datasetName || teamNamesToLoad.length === 0) {
+        modifyErrorMessage.textContent = 'Please enter a dataset name and select at least one team to load.';
+        modifyErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/load-existing-dataset/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                dataset_name: datasetName,
+                team_names: teamNamesToLoad // Send selected teams to help fetch Athena metadata per team
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            if (result.fields_json) {
+                modifyJsonFieldsInput.value = JSON.stringify(result.fields_json, null, 2);
+                modifyJsonFieldsInput.oninput(); // Trigger validation and initial check
+                modifySuccessMessage.textContent = 'Dataset loaded successfully.';
+                modifySuccessMessage.classList.remove('hidden');
+            } else {
+                modifyErrorMessage.textContent = 'Dataset found, but no fields to display.';
+                modifyErrorMessage.classList.remove('hidden');
+            }
+        } else {
+            modifyErrorMessage.textContent = result.error || 'An unknown error occurred while loading.';
+            modifyErrorMessage.classList.remove('hidden');
+        }
+
+    } catch (error) {
+        console.error('Error loading dataset:', error);
+        modifyErrorMessage.textContent = 'Network error or server unreachable.';
+        modifyErrorMessage.classList.remove('hidden');
+    }
+};
+
+
+// --- Update Existing Dataset Logic (Placeholder) ---
+modifyDatasetForm.onsubmit = async function(e) { // Renamed from updateExistingBtn.onclick
+    e.preventDefault(); // Prevent default form submission
+    modifySuccessMessage.classList.add('hidden');
+    modifyErrorMessage.classList.add('hidden');
+
+    modifyJsonFieldsInput.oninput(); // Re-validate JSON before submission
+    if (!modifyJsonFieldsValid) {
+        modifyErrorMessage.textContent = 'Please correct the JSON errors.';
+        modifyErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    const datasetName = modifyDatasetNameInput.value.trim();
+    const teamNamesToUpdate = modifyTeamNames.filter(t => t.trim() !== '');
+    let updatedAttributes = {};
+    try {
+        // Parse the JSON from the textarea for submission
+        const parsedInputJson = JSON.parse(modifyJsonFieldsInput.value);
+        // The backend expects 'attributes' in the format { 'col_name': 'type' }
+        // The parsedInputJson is already in this format, or similar. We send it as is.
+        updatedAttributes = parsedInputJson;
+    } catch (e) {
+        modifyErrorMessage.textContent = 'Invalid JSON in input field. Cannot update.';
+        modifyErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    if (!datasetName || teamNamesToUpdate.length === 0) {
+        modifyErrorMessage.textContent = 'Please enter a dataset name and select at least one team to update.';
+        modifyErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/update-existing-dataset/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                dataset_name: datasetName,
+                team_names: teamNamesToUpdate,
+                updated_attributes: updatedAttributes // Send the parsed attributes
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            modifySuccessMessage.textContent = result.message;
+            modifySuccessMessage.classList.remove('hidden');
+        } else {
+            modifyErrorMessage.textContent = result.error || 'An unknown error occurred while updating.';
+            modifyErrorMessage.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error updating dataset:', error);
+        modifyErrorMessage.textContent = 'Network error or server unreachable.';
+        modifyErrorMessage.classList.remove('hidden');
+    }
+};
+
