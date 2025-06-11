@@ -10,8 +10,8 @@
         <button class="tab-button active" data-tab="create">Create New Dataset</button>
         <button class="tab-button" data-tab="modify">Modify Existing Dataset</button>
     </div>
-<!-- Modify Existing Tab Content -->
-<div id="createTabContent" class="tab-content active">
+
+!-- Modify Existing Tab Content -->
     <div id="modifyTabContent" class="tab-content hidden">
         <div class="row" style="font-size: 1.5em; font-weight: bold; margin-bottom: 20px;">Modify Existing Dataset</div>
         <form id="modifyDatasetForm" method="post">
@@ -21,7 +21,7 @@
                 <input class="input" type="text" id="modifyDatasetName" name="datasetName" required>
             </div>
 
-            <!-- Team Names for Modify Tab -->
+            <!-- Team Names for Modify Tab (reusing custom select logic) -->
             <div class="row" style="align-items: flex-start;">
                 <div class="label" style="padding-top: 8px;">Team Names:</div>
                 <div id="modifyTeamSelectContainer" class="team-select-container">
@@ -35,36 +35,23 @@
                 </div>
             </div>
 
-            <!-- New Fields JSON Input -->
             <div class="row" id="modifyJsonInputRow" style="align-items: flex-start;">
-                <div class="label" style="padding-top: 8px;">New Fields to Add/Update:
-                    <span id="modifyJsonInfoIcon" style="cursor:pointer; margin-left:6px; color:#1976d2; font-size:1.1em;" title='Format: {"new_column": "string|float"}'>ℹ️</span>
+                <div class="label" style="padding-top: 8px;">Existing Fields JSON:
+                    <span id="modifyJsonInfoIcon" style="cursor:pointer; margin-left:6px; color:#1976d2; font-size:1.1em;" title='Format: {"column_name": "string|float"}'>ℹ️</span>
                 </div>
-                <textarea id="modifyJsonFieldsInput" class="input" rows="15" placeholder='{"new_column": "string", "another_column": "float"}' style="flex:2; resize: vertical;"></textarea>
+                <textarea id="modifyJsonFieldsInput" class="input" rows="15" placeholder='Fetched JSON will appear here' style="flex:2; resize: vertical;"></textarea>
             </div>
             <div class="row message-error hidden" id="modifyJsonErrorRow"></div>
 
-            <!-- Preview of Updated Dataset -->
-            <div class="preview">
-                <div style="font-weight: bold; margin-bottom: 8px;">Updated Dataset Preview</div>
-                <textarea id="modifyJsonPreview" class="input" rows="20" style="font-family: monospace; resize: vertical;" readonly></textarea>
-            </div>
-
-            <!-- Athena SQL Output -->
-            <div class="row" id="modifyAthenaSqlRow" style="display:none; flex-direction:column; margin-top:32px; position: relative;">
-                <div style="font-weight:bold; margin-bottom:8px;">Updated Athena CREATE TABLE SQL</div>
-                <button type="button" class="btn" id="modifyCopyAthenaSqlBtn" style="position: absolute; top: 40px; right: 8px; background: #eee; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 1.2em;" title="Copy SQL">📋</button>
-                <textarea id="modifyAthenaSqlOutput" class="input" rows="15" style="font-family:monospace; width: 100%; box-sizing: border-box; padding-top: 30px; resize: vertical;" readonly></textarea>
-            </div>
-
             <div class="row" style="justify-content: flex-end; margin-top: 24px;">
                 <button type="button" class="btn btn-info" id="loadExistingBtn">Load Existing Dataset</button>
-                <button type="submit" class="btn btn-primary" id="updateExistingBtn">Update Dataset</button>
+                <button type="submit" class="btn btn-primary" id="updateExistingBtn">Update Existing Dataset</button>
             </div>
             <div class="row message-success hidden" id="modifySuccessMessage"></div>
             <div class="row message-error hidden" id="modifyErrorMessage"></div>
         </form>
     </div>
+
 
 // Tab Elements
 const createTabButton = document.querySelector('[data-tab="create"]');
